@@ -2,6 +2,7 @@
 #include "ImageUtils.h"
 #include <iostream>
 #include <exception>
+#include <cmath>
 
 #ifdef WITH_ONNXRUNTIME
 // DirectML header might be required if we use DML EP
@@ -138,11 +139,16 @@ bool Inference::RunInference(const std::vector<uint8_t>& imageBuffer, uint32_t w
         return false;
     }
 #else
-    // Mock landmarks for stub mode testing (a static open hand shape)
+    // Mock landmarks for stub mode testing (simulates an open hand drifting in a circle)
+    static float angle = 0.0f;
+    angle += 0.03f;
+    float offsetX = 0.05f * std::cos(angle);
+    float offsetY = 0.05f * std::sin(angle);
+
     outLandmarks.resize(21);
     for (int i = 0; i < 21; ++i) {
-        outLandmarks[i].x = 0.5f + (i * 0.01f);
-        outLandmarks[i].y = 0.5f - (i * 0.01f);
+        outLandmarks[i].x = 0.5f + (i * 0.01f) + offsetX;
+        outLandmarks[i].y = 0.5f - (i * 0.01f) + offsetY;
         outLandmarks[i].z = 0.0f;
     }
     return true;

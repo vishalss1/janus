@@ -3,7 +3,7 @@
 #include "Fsm.h"
 #include "Config.h"
 #include "SharedMemoryWriter.h"
-#include "HidBridge.h"
+#include "InputInjector.h"
 
 #include <iostream>
 #include <thread>
@@ -158,13 +158,8 @@ int main(int argc, char* argv[]) {
     }
     std::cout << "IPC Shared Memory segment ready." << std::endl;
 
-    // 3. Connect to HID Driver
-    gesture::HidBridge hid;
-    bool driverLoaded = hid.Open();
-    if (!driverLoaded) {
-        std::cout << "[Bridge] Driver not detected. Running in NO-DRIVER (simulation) mode." << std::endl;
-        std::cout << "[Bridge] Mouse inputs will only update Shared Memory." << std::endl;
-    }
+    // 3. Initialize Input Injector
+    gesture::InputInjector injector;
 
     // 4. Load Inference Model
     gesture::Inference inference;
@@ -215,10 +210,8 @@ int main(int argc, char* argv[]) {
             fsm.Update(landmarks, config);
             const auto& output = fsm.GetOutput();
 
-            // Send reports to HID Driver
-            if (driverLoaded && hid.IsOpen()) {
-                hid.SendTrackingUpdate(output);
-            }
+            // Inject mouse/keyboard events via SendInput
+            injector.SendTrackingUpdate(output);
 
             // Write outputs to IPC shared memory
             auto* shmData = shmWriter.Data();
@@ -250,7 +243,6 @@ int main(int argc, char* argv[]) {
         capThread.join();
     }
 
-    hid.Close();
     shmWriter.Close();
     
     std::cout << "Pipeline terminated cleanly." << std::endl;
