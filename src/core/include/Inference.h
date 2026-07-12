@@ -3,6 +3,11 @@
 #include <vector>
 #include <string>
 #include <cstdint>
+#include <memory>
+
+#ifdef WITH_ONNXRUNTIME
+#include <onnxruntime_cxx_api.h>
+#endif
 
 namespace gesture {
 
@@ -19,12 +24,18 @@ public:
 
     bool LoadModel(const std::wstring& modelPath);
     
-    // Run hand landmark model on raw image buffer (assumes RGB24 or RGBA format)
+    // Run hand landmark model on raw image buffer (BGRA format)
     bool RunInference(const std::vector<uint8_t>& imageBuffer, uint32_t width, uint32_t height, std::vector<Landmark>& outLandmarks);
 
 private:
     bool m_modelLoaded;
-    // Pointers for ONNX Runtime environment and sessions will go here once ONNXRT is linked
+
+#ifdef WITH_ONNXRUNTIME
+    std::unique_ptr<Ort::Env> m_env;
+    std::unique_ptr<Ort::Session> m_session;
+    std::vector<std::string> m_inputNodeNames;
+    std::vector<std::string> m_outputNodeNames;
+#endif
 };
 
 } // namespace gesture

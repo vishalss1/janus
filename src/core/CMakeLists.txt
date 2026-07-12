@@ -7,13 +7,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Configure output directories
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-# Windows Libraries (Media Foundation, Shared Memory)
+# Windows Libraries (Media Foundation, Shared Memory, Device Info)
 link_libraries(
+    mf
     mfplat
     mfreadwrite
     mfuuid
     ole32
     user32
+    setupapi
 )
 
 # Header directories
