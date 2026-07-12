@@ -7,4 +7,5 @@ swipeVelocityThreshold=0.04
 swipeWindowFrames=8
 cameraDeviceIndex=0
 targetFps=30
-modelPath=models/mediapipe_hand.onnx
+modelPath=models/handpose_estimation_mediapipe_2023feb.onnx
+enableIrMode=1

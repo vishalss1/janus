@@ -13,7 +13,8 @@ struct Config {
     uint32_t swipeWindowFrames = 8;
     uint32_t cameraDeviceIndex = 0;
     uint32_t targetFps = 30;
-    std::wstring modelPath = L"models/mediapipe_hand.onnx";
+    std::wstring modelPath = L"models/handpose_estimation_mediapipe_2023feb.onnx";
+    bool enableIrMode = false;
 
     // Load from a simple key=value text file (e.g. config.txt).
     // If file doesn't exist, writes a default one and returns true.

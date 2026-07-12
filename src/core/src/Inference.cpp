@@ -4,7 +4,7 @@
 #include <exception>
 #include <cmath>
 
-#ifdef WITH_ONNXRUNTIME
+#ifdef WITH_DIRECTML
 // DirectML header might be required if we use DML EP
 #include <dml_provider_factory.h>
 #endif
@@ -24,6 +24,7 @@ bool Inference::LoadModel(const std::wstring& modelPath) {
         sessionOptions.SetIntraOpNumThreads(2);
         sessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
 
+#ifdef WITH_DIRECTML
         // Append DirectML Execution Provider (device index 0)
         HRESULT hr = OrtSessionOptionsAppendExecutionProvider_DML(sessionOptions, 0);
         if (FAILED(hr)) {
@@ -31,6 +32,9 @@ bool Inference::LoadModel(const std::wstring& modelPath) {
         } else {
             std::cout << "Successfully appended DirectML Execution Provider." << std::endl;
         }
+#else
+        std::cout << "DirectML Execution Provider disabled. Using default CPU Execution Provider." << std::endl;
+#endif
 
         m_session = std::make_unique<Ort::Session>(*m_env, modelPath.c_str(), sessionOptions);
         
@@ -63,7 +67,7 @@ bool Inference::LoadModel(const std::wstring& modelPath) {
 #endif
 }
 
-bool Inference::RunInference(const std::vector<uint8_t>& imageBuffer, uint32_t width, uint32_t height, std::vector<Landmark>& outLandmarks) {
+bool Inference::RunInference(const std::vector<uint8_t>& imageBuffer, uint32_t width, uint32_t height, std::vector<Landmark>& outLandmarks, bool enableIrMode) {
     if (!m_modelLoaded) return false;
 
     outLandmarks.clear();
@@ -74,8 +78,17 @@ bool Inference::RunInference(const std::vector<uint8_t>& imageBuffer, uint32_t w
         uint32_t modelInputSize = 224; // Standard size for many MediaPipe hand landmark models
         std::vector<float> inputTensorValues;
         
+        std::vector<uint8_t> processedBuffer;
+        const std::vector<uint8_t>* bufferToPreprocess = &imageBuffer;
+        
+        if (enableIrMode) {
+            processedBuffer = imageBuffer;
+            utils::EqualizeContrast(processedBuffer, width, height);
+            bufferToPreprocess = &processedBuffer;
+        }
+
         utils::PreprocessImage(
-            imageBuffer,
+            *bufferToPreprocess,
             width,
             height,
             modelInputSize,
@@ -83,8 +96,8 @@ bool Inference::RunInference(const std::vector<uint8_t>& imageBuffer, uint32_t w
             inputTensorValues
         );
 
-        // Define input shapes
-        std::vector<int64_t> inputDims = {1, 3, modelInputSize, modelInputSize};
+        // Define input shapes: [1, 224, 224, 3] (NHWC)
+        std::vector<int64_t> inputDims = {1, modelInputSize, modelInputSize, 3};
 
         // Create Ort input tensor
         auto memoryInfo = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
@@ -127,9 +140,10 @@ bool Inference::RunInference(const std::vector<uint8_t>& imageBuffer, uint32_t w
         if (elementCount >= 63) {
             outLandmarks.resize(21);
             for (int i = 0; i < 21; ++i) {
-                outLandmarks[i].x = floatValues[i * 3 + 0];
-                outLandmarks[i].y = floatValues[i * 3 + 1];
-                outLandmarks[i].z = floatValues[i * 3 + 2];
+                // Normalize coordinates from 224x224 pixel-space to [0.0, 1.0] normalized-space
+                outLandmarks[i].x = floatValues[i * 3 + 0] / 224.0f;
+                outLandmarks[i].y = floatValues[i * 3 + 1] / 224.0f;
+                outLandmarks[i].z = floatValues[i * 3 + 2] / 224.0f;
             }
             return true;
         }

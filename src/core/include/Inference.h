@@ -25,7 +25,7 @@ public:
     bool LoadModel(const std::wstring& modelPath);
     
     // Run hand landmark model on raw image buffer (BGRA format)
-    bool RunInference(const std::vector<uint8_t>& imageBuffer, uint32_t width, uint32_t height, std::vector<Landmark>& outLandmarks);
+    bool RunInference(const std::vector<uint8_t>& imageBuffer, uint32_t width, uint32_t height, std::vector<Landmark>& outLandmarks, bool enableIrMode = false);
 
 private:
     bool m_modelLoaded;

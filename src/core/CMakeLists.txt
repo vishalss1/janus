@@ -41,10 +41,29 @@ target_compile_definitions(GestureCore PRIVATE
 # Usage: cmake -DONNXRUNTIME_DIR="C:/path/to/onnxruntime" ..
 if(ONNXRUNTIME_DIR)
     message(STATUS "ONNX Runtime dir defined: ${ONNXRUNTIME_DIR}")
-    include_directories(${ONNXRUNTIME_DIR}/include)
-    target_link_directories(GestureCore PRIVATE ${ONNXRUNTIME_DIR}/lib)
+    if(EXISTS "${ONNXRUNTIME_DIR}/build/native/include")
+        include_directories(${ONNXRUNTIME_DIR}/build/native/include)
+    else()
+        include_directories(${ONNXRUNTIME_DIR}/include)
+    endif()
+
+    if(EXISTS "${ONNXRUNTIME_DIR}/runtimes/win-x64/native")
+        target_link_directories(GestureCore PRIVATE ${ONNXRUNTIME_DIR}/runtimes/win-x64/native)
+    else()
+        target_link_directories(GestureCore PRIVATE ${ONNXRUNTIME_DIR}/lib)
+    endif()
+
     target_link_libraries(GestureCore PRIVATE onnxruntime.lib)
     target_compile_definitions(GestureCore PRIVATE WITH_ONNXRUNTIME)
+
+    # Check if DirectML provider is available in the ONNX Runtime directories
+    find_path(DML_HEADER NAMES dml_provider_factory.h HINTS ${ONNXRUNTIME_DIR}/include ${ONNXRUNTIME_DIR}/build/native/include)
+    if(DML_HEADER)
+        message(STATUS "DirectML header found, enabling DirectML Execution Provider.")
+        target_compile_definitions(GestureCore PRIVATE WITH_DIRECTML)
+    else()
+        message(STATUS "DirectML header NOT found. Building ONNX Runtime for CPU execution provider only.")
+    endif()
 else()
     message(WARNING "ONNXRUNTIME_DIR not specified. Building with dummy inference engine. Use -DONNXRUNTIME_DIR to enable ONNX Runtime.")
 endif()

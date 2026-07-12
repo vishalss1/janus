@@ -70,6 +70,8 @@ bool Config::Load(const std::wstring& filePath) {
                 targetFps = std::stoul(value);
             } else if (key == "modelPath") {
                 modelPath = StringToWString(value);
+            } else if (key == "enableIrMode") {
+                enableIrMode = (value == "1" || value == "true");
             }
         }
     }
@@ -92,6 +94,7 @@ bool Config::Save(const std::wstring& filePath) const {
     file << "cameraDeviceIndex=" << cameraDeviceIndex << "\n";
     file << "targetFps=" << targetFps << "\n";
     file << "modelPath=" << WStringToString(modelPath) << "\n";
+    file << "enableIrMode=" << (enableIrMode ? 1 : 0) << "\n";
 
     return true;
 }

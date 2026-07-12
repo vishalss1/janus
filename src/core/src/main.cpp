@@ -205,7 +205,7 @@ int main(int argc, char* argv[]) {
         lastFrameTime = now;
 
         // Run landmark inference on GPU (DirectML) or CPU
-        if (inference.RunInference(frameBuffer, width, height, landmarks)) {
+        if (inference.RunInference(frameBuffer, width, height, landmarks, config.enableIrMode)) {
             // Update Debounce state FSM
             fsm.Update(landmarks, config);
             const auto& output = fsm.GetOutput();

@@ -8,8 +8,8 @@ namespace gesture {
 namespace utils {
 
 // Resizes a BGRA (4 channels, 8-bit per channel) image to a specified size (destWidth x destHeight) 
-// using bilinear interpolation, and simultaneously normalizes and converts to an RGB float planar tensor.
-// Output tensor shape: [3, destHeight, destWidth] (planar format expected by ONNX model).
+// using bilinear interpolation, and simultaneously normalizes and converts to an RGB float interleaved tensor.
+// Output tensor shape: [destHeight, destWidth, 3] (interleaved NHWC format expected by ONNX model).
 inline void PreprocessImage(
     const std::vector<uint8_t>& bgraBuffer,
     uint32_t srcWidth,
@@ -22,10 +22,6 @@ inline void PreprocessImage(
     
     float xRatio = static_cast<float>(srcWidth - 1) / destWidth;
     float yRatio = static_cast<float>(srcHeight - 1) / destHeight;
-
-    float* rChannel = outTensor.data();
-    float* gChannel = outTensor.data() + (destWidth * destHeight);
-    float* bChannel = outTensor.data() + (2 * destWidth * destHeight);
 
     for (uint32_t y = 0; y < destHeight; ++y) {
         for (uint32_t x = 0; x < destWidth; ++x) {
@@ -60,18 +56,67 @@ inline void PreprocessImage(
                 // Normalize to [0.0, 1.0] range
                 float normVal = val / 255.0f;
 
-                size_t destIndex = static_cast<size_t>(y) * destWidth + x;
+                // Interleaved NHWC format: index = (y * destWidth + x) * 3
+                size_t destIndex = (static_cast<size_t>(y) * destWidth + x) * 3;
                 
-                // Map output to planar RGB format (model expectation)
-                if (c == 2) { // Red
-                    rChannel[destIndex] = normVal;
-                } else if (c == 1) { // Green
-                    gChannel[destIndex] = normVal;
-                } else if (c == 0) { // Blue
-                    bChannel[destIndex] = normVal;
+                if (c == 2) { // Red -> offset 0
+                    outTensor[destIndex + 0] = normVal;
+                } else if (c == 1) { // Green -> offset 1
+                    outTensor[destIndex + 1] = normVal;
+                } else if (c == 0) { // Blue -> offset 2
+                    outTensor[destIndex + 2] = normVal;
                 }
             }
         }
+    }
+}
+
+// Performs global histogram equalization in-place on a BGRA buffer
+inline void EqualizeContrast(std::vector<uint8_t>& bgraBuffer, uint32_t width, uint32_t height) {
+    if (bgraBuffer.empty()) return;
+
+    // 1. Calculate intensity histogram (use green channel as a representative of IR frame)
+    uint32_t histogram[256] = {0};
+    size_t pixelCount = width * height;
+    
+    for (size_t i = 0; i < pixelCount; ++i) {
+        uint8_t g = bgraBuffer[i * 4 + 1];
+        histogram[g]++;
+    }
+
+    // 2. Compute Cumulative Distribution Function (CDF)
+    uint32_t cdf[256] = {0};
+    cdf[0] = histogram[0];
+    for (int i = 1; i < 256; ++i) {
+        cdf[i] = cdf[i - 1] + histogram[i];
+    }
+
+    // 3. Find minimum non-zero CDF value
+    uint32_t cdfMin = 0;
+    for (int i = 0; i < 256; ++i) {
+        if (cdf[i] > 0) {
+            cdfMin = cdf[i];
+            break;
+        }
+    }
+
+    uint32_t totalPixels = cdf[255];
+    if (totalPixels - cdfMin == 0) {
+        return; // Uniform image, nothing to equalize
+    }
+
+    // 4. Create lookup table (LUT)
+    uint8_t lut[256] = {0};
+    for (int i = 0; i < 256; ++i) {
+        float val = static_cast<float>(cdf[i] - cdfMin) / (totalPixels - cdfMin) * 255.0f;
+        lut[i] = static_cast<uint8_t>(val < 0.0f ? 0.0f : (val > 255.0f ? 255.0f : val));
+    }
+
+    // 5. Map channels in-place using lookup table
+    for (size_t i = 0; i < pixelCount; ++i) {
+        bgraBuffer[i * 4 + 0] = lut[bgraBuffer[i * 4 + 0]]; // Blue
+        bgraBuffer[i * 4 + 1] = lut[bgraBuffer[i * 4 + 1]]; // Green
+        bgraBuffer[i * 4 + 2] = lut[bgraBuffer[i * 4 + 2]]; // Red
     }
 }
 
